@@ -24,7 +24,8 @@ import {
   Monitor,
   Code2,
   Wand2,
-  Info
+  Info,
+  Image as ImageIcon
 } from 'lucide-react';
 
 async function callGeminiApi(prompt, systemInstruction = "") {
@@ -181,6 +182,29 @@ export default function App() {
   const [lastRefinementInfo, setLastRefinementInfo] =
     useState(null);
 
+  /*
+   * AI IMAGE PROMPT GENERATOR
+   * Tidak menghasilkan gambar.
+   * Hanya menghasilkan prompt teks yang siap dipakai
+   * di image generator pilihan pengguna.
+   */
+  const [imagePromptData, setImagePromptData] = useState({
+    prompt: '',
+    filename: '',
+    altText: '',
+    titleText: '',
+    negativePrompt: ''
+  });
+
+  const [isGeneratingImagePrompt, setIsGeneratingImagePrompt] =
+    useState(false);
+
+  const [imagePromptCopied, setImagePromptCopied] =
+    useState(false);
+
+  const [imagePromptAllCopied, setImagePromptAllCopied] =
+    useState(false);
+
   const [resultData, setResultData] = useState({
     topic: '',
     targetAudience: '',
@@ -273,7 +297,7 @@ export default function App() {
   };
 
   const copyToClipboard = text => {
-    const cleanText = text
+    const cleanText = String(text || '')
       .replace(/\*\*/g, '')
       .replace(/\*/g, '');
 
@@ -296,6 +320,241 @@ export default function App() {
     }
 
     document.body.removeChild(textarea);
+  };
+
+  /*
+   * COPY IMAGE PROMPT
+   */
+  const copyImagePrompt = async () => {
+    if (!imagePromptData.prompt) return;
+
+    try {
+      await navigator.clipboard.writeText(
+        imagePromptData.prompt
+      );
+    } catch (err) {
+      const textarea = document.createElement('textarea');
+      textarea.value = imagePromptData.prompt;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+
+    setImagePromptCopied(true);
+
+    setTimeout(() => {
+      setImagePromptCopied(false);
+    }, 2000);
+  };
+
+  /*
+   * COPY ALL IMAGE INFORMATION
+   */
+  const copyAllImagePromptData = async () => {
+    const allText = `IMAGE PROMPT
+
+${imagePromptData.prompt}
+
+NEGATIVE PROMPT
+
+${imagePromptData.negativePrompt}
+
+FILENAME
+
+${imagePromptData.filename}
+
+ALT TEXT
+
+${imagePromptData.altText}
+
+TITLE TEXT
+
+${imagePromptData.titleText}`;
+
+    try {
+      await navigator.clipboard.writeText(allText);
+    } catch (err) {
+      const textarea = document.createElement('textarea');
+      textarea.value = allText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+
+    setImagePromptAllCopied(true);
+
+    setTimeout(() => {
+      setImagePromptAllCopied(false);
+    }, 2000);
+  };
+
+  /*
+   * AI IMAGE PROMPT GENERATOR
+   *
+   * Fitur ini hanya menghasilkan prompt teks.
+   * Tidak melakukan image generation.
+   */
+  const handleGenerateImagePrompt = async () => {
+    if (!resultData.articleContent || !resultData.topic) {
+      setErrorMessage(
+        "Artikel belum tersedia. Silakan buat artikel terlebih dahulu."
+      );
+      return;
+    }
+
+    setIsGeneratingImagePrompt(true);
+    setErrorMessage('');
+
+    const isEnglish =
+      optionalData.targetLanguage === 'en';
+
+    const language = isEnglish
+      ? 'English'
+      : 'Bahasa Indonesia';
+
+    try {
+      const prompt = `Buatkan paket IMAGE PROMPT PROFESIONAL untuk artikel blog berikut.
+
+TUJUAN:
+Prompt akan digunakan oleh pengguna pada AI image generator lain seperti Gemini, ChatGPT, Canva, atau generator gambar lainnya.
+
+PENTING:
+- Jangan menghasilkan gambar.
+- Hanya hasilkan prompt teks.
+- Prompt harus menggambarkan isi artikel secara relevan.
+- Jangan membuat visual yang tidak berhubungan dengan topik.
+- Jangan hanya mengulang judul artikel.
+- Pilih satu adegan utama yang paling representatif terhadap artikel.
+- Utamakan manusia, objek, tempat, aktivitas, atau situasi yang benar-benar relevan dengan isi artikel.
+- Gunakan gaya FOTO REALISTIS seperti hasil fotografer profesional.
+- Landscape 16:9.
+- Natural lighting.
+- Sharp focus.
+- Clear details.
+- Realistic proportions.
+- Natural skin texture jika ada manusia.
+- Realistic environment.
+- Professional editorial/lifestyle photography.
+- Tidak boleh ada tulisan, caption, logo, watermark, atau typography di dalam gambar.
+- Hindari hasil seperti ilustrasi, kartun, anime, 3D render, vector art, atau lukisan.
+
+BAHASA OUTPUT:
+Gunakan ${language} untuk Alt Text dan Title Text.
+Prompt gambar boleh menggunakan bahasa Inggris karena umumnya lebih kompatibel dengan berbagai image generator.
+
+DATA ARTIKEL:
+
+Judul/Topik:
+"${resultData.topic}"
+
+Keyword Utama:
+"${resultData.primaryKeyword}"
+
+Target Pembaca:
+"${resultData.targetAudience}"
+
+Pain Points:
+"${resultData.painPoints}"
+
+Unique Angle:
+"${resultData.uniqueAngle}"
+
+Search Intent:
+"${resultData.searchIntent}"
+
+Outline:
+"${resultData.outline}"
+
+Cuplikan Artikel:
+"${resultData.articleContent.substring(0, 5000)}"
+
+HASILKAN JSON MURNI TANPA MARKDOWN:
+
+{
+  "prompt": "Detailed professional photorealistic image generation prompt in English. Clearly describe the exact subject, environment, activity, composition, camera perspective, lighting, mood, realism, and landscape 16:9 framing.",
+  "negativePrompt": "Things to avoid, such as text, watermark, logo, distorted anatomy, extra fingers, unrealistic proportions, cartoon, illustration, anime, 3D render, blurry image, oversaturated colors, duplicate people, malformed objects.",
+  "filename": "seo-friendly-lowercase-filename-with-hyphens.jpg",
+  "altText": "Descriptive and accessible image alt text relevant to the article.",
+  "titleText": "Short descriptive image title relevant to the article."
+}
+
+ATURAN FILENAME:
+- lowercase
+- gunakan hyphen
+- tanpa karakter khusus
+- jangan terlalu panjang
+- relevan dengan topik
+- akhiri dengan .jpg
+
+ATURAN ALT TEXT:
+- deskriptif
+- natural
+- bukan keyword stuffing
+- menjelaskan isi visual yang kemungkinan besar dibuat oleh prompt
+
+ATURAN TITLE TEXT:
+- singkat
+- deskriptif
+- natural
+- relevan dengan artikel`;
+
+      const resultText = await callGeminiApi(
+        prompt,
+        `Kamu adalah Creative Director fotografi editorial, SEO Image Specialist, dan visual content strategist. Buat prompt gambar yang sangat spesifik, realistis, relevan dengan artikel, dan tidak melenceng dari topik. Jangan menghasilkan gambar. Hanya hasilkan JSON paket prompt gambar.`
+      );
+
+      const cleanJson = resultText
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
+
+      let parsed;
+
+      try {
+        parsed = JSON.parse(cleanJson);
+      } catch (jsonError) {
+        /*
+         * Fallback jika AI mengembalikan JSON yang tidak sempurna.
+         */
+        parsed = {
+          prompt: resultText.trim(),
+          negativePrompt:
+            'text, watermark, logo, blurry image, distorted anatomy, extra fingers, duplicate objects, cartoon, anime, illustration, 3D render, unrealistic proportions',
+          filename:
+            `${resultData.urlSlug || 'blog-image'}.jpg`,
+          altText:
+            isEnglish
+              ? `Professional photograph related to ${resultData.topic}`
+              : `Foto profesional yang berkaitan dengan ${resultData.topic}`,
+          titleText:
+            resultData.topic
+        };
+      }
+
+      setImagePromptData({
+        prompt: parsed.prompt || '',
+        negativePrompt:
+          parsed.negativePrompt || '',
+        filename:
+          parsed.filename ||
+          `${resultData.urlSlug || 'blog-image'}.jpg`,
+        altText:
+          parsed.altText ||
+          resultData.topic,
+        titleText:
+          parsed.titleText ||
+          resultData.topic
+      });
+    } catch (err) {
+      setErrorMessage(
+        "Gagal membuat AI Image Prompt: " +
+          err.message
+      );
+    } finally {
+      setIsGeneratingImagePrompt(false);
+    }
   };
 
   const analyzeTopicPotential = async (
@@ -802,6 +1061,17 @@ Balas JSON murni:
           ["Siap AdSense."]
       });
 
+      /*
+       * Reset image prompt ketika artikel baru dibuat.
+       */
+      setImagePromptData({
+        prompt: '',
+        filename: '',
+        altText: '',
+        titleText: '',
+        negativePrompt: ''
+      });
+
       setPageStage('result');
       setCurrentStep(9);
     } catch (err) {
@@ -887,6 +1157,19 @@ Buatkan 2-3 poin penjelasan singkat dan jelas dalam bahasa Indonesia mengenai ap
             updatedArticle.trim()
         }));
 
+        /*
+         * Artikel berubah, sehingga prompt gambar lama
+         * sebaiknya dihapus agar pengguna membuat prompt
+         * baru berdasarkan artikel terbaru.
+         */
+        setImagePromptData({
+          prompt: '',
+          filename: '',
+          altText: '',
+          titleText: '',
+          negativePrompt: ''
+        });
+
         setLastRefinementInfo({
           instruction:
             refinementInstruction.trim(),
@@ -927,6 +1210,17 @@ Buatkan 2-3 poin penjelasan singkat dan jelas dalam bahasa Indonesia mengenai ap
     setErrorMessage('');
     setRefinementInstruction('');
     setLastRefinementInfo(null);
+
+    setImagePromptData({
+      prompt: '',
+      filename: '',
+      altText: '',
+      titleText: '',
+      negativePrompt: ''
+    });
+
+    setImagePromptCopied(false);
+    setImagePromptAllCopied(false);
 
     setResultData({
       topic: '',
@@ -1064,7 +1358,7 @@ Buatkan 2-3 poin penjelasan singkat dan jelas dalam bahasa Indonesia mengenai ap
               <button
                 onClick={() =>
                   copyToClipboard(
-                    `// SEO Article Studio Pro Source Code`
+                    `SEO Article Studio Pro - AI Image Prompt Generator`
                   )
                 }
                 className="text-xs bg-slate-800 text-slate-200 px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-700 transition"
@@ -1077,7 +1371,9 @@ Buatkan 2-3 poin penjelasan singkat dan jelas dalam bahasa Indonesia mengenai ap
             <pre className="text-xs text-slate-300 font-mono leading-relaxed overflow-x-auto max-h-[600px]">
 {`// SEO Article Studio Pro
 // Generator Artikel SEO, E-E-A-T & AdSense
-// Image Generation telah dihapus.`}
+// AI Image Prompt Generator
+// Image generation tidak dilakukan di server.
+// Prompt gambar dibuat menggunakan Gemini Text API.`}
             </pre>
 
           </div>
@@ -2129,6 +2425,237 @@ Buatkan 2-3 poin penjelasan singkat dan jelas dalam bahasa Indonesia mengenai ap
                               </p>
 
                             </div>
+
+                          </div>
+
+                        </div>
+
+                      )}
+
+                    </div>
+
+                    {/* AI IMAGE PROMPT GENERATOR */}
+
+                    <div className="bg-slate-800/50 border border-slate-700/60 rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl">
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700 pb-4">
+
+                        <div className="flex items-start gap-3">
+
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                            <ImageIcon className="w-5 h-5 text-emerald-400" />
+                          </div>
+
+                          <div>
+
+                            <h3 className="text-lg font-bold text-slate-100">
+                              AI Image Prompt Generator
+                            </h3>
+
+                            <p className="text-xs text-slate-400 mt-1">
+                              Buat prompt gambar profesional berdasarkan artikel tanpa menghasilkan gambar secara langsung.
+                            </p>
+
+                          </div>
+
+                        </div>
+
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-full whitespace-nowrap">
+                          Gratis • Prompt Teks
+                        </span>
+
+                      </div>
+
+                      <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
+
+                        <div className="flex items-start gap-2">
+
+                          <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            Prompt akan dibuat berdasarkan topik, keyword, target pembaca, unique angle, outline, dan isi artikel. Gunakan prompt tersebut pada AI image generator pilihan Anda untuk membuat gambar.
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                      <button
+                        onClick={
+                          handleGenerateImagePrompt
+                        }
+                        disabled={
+                          isGeneratingImagePrompt ||
+                          !resultData.articleContent
+                        }
+                        className="w-full sm:w-auto px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+                      >
+
+                        {isGeneratingImagePrompt ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+
+                        {isGeneratingImagePrompt
+                          ? "Membuat Image Prompt..."
+                          : "Generate AI Image Prompt"}
+
+                      </button>
+
+                      {imagePromptData.prompt && (
+
+                        <div className="space-y-4 pt-2">
+
+                          {/* PROMPT */}
+
+                          <div className="space-y-2">
+
+                            <div className="flex items-center justify-between gap-2">
+
+                              <label className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                                Image Prompt
+                              </label>
+
+                              <button
+                                onClick={
+                                  copyImagePrompt
+                                }
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 rounded-lg text-[11px] font-semibold transition"
+                              >
+                                {imagePromptCopied ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+
+                                {imagePromptCopied
+                                  ? "Tersalin"
+                                  : "Copy Prompt"}
+                              </button>
+
+                            </div>
+
+                            <textarea
+                              readOnly
+                              value={
+                                imagePromptData.prompt
+                              }
+                              className="w-full min-h-[220px] bg-slate-950 border border-slate-700 rounded-2xl p-4 text-xs text-slate-200 leading-relaxed focus:outline-none resize-y"
+                            />
+
+                          </div>
+
+                          {/* NEGATIVE PROMPT */}
+
+                          <div className="space-y-2">
+
+                            <label className="text-xs font-bold text-rose-300 uppercase tracking-wider">
+                              Negative Prompt
+                            </label>
+
+                            <textarea
+                              readOnly
+                              value={
+                                imagePromptData.negativePrompt
+                              }
+                              className="w-full min-h-[100px] bg-slate-950 border border-slate-700 rounded-2xl p-4 text-xs text-slate-300 leading-relaxed focus:outline-none resize-y"
+                            />
+
+                          </div>
+
+                          {/* IMAGE SEO */}
+
+                          <div className="grid grid-cols-1 gap-3">
+
+                            <div className="bg-slate-950 border border-slate-700 rounded-2xl p-4 space-y-2">
+
+                              <label className="text-xs font-bold text-sky-400 uppercase tracking-wider block">
+                                Filename
+                              </label>
+
+                              <div className="flex items-center gap-2">
+
+                                <input
+                                  readOnly
+                                  value={
+                                    imagePromptData.filename
+                                  }
+                                  className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 font-mono focus:outline-none"
+                                />
+
+                                <button
+                                  onClick={() =>
+                                    copyToClipboard(
+                                      imagePromptData.filename
+                                    )
+                                  }
+                                  className="p-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl border border-slate-700"
+                                  title="Copy filename"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+
+                              </div>
+
+                            </div>
+
+                            <div className="bg-slate-950 border border-slate-700 rounded-2xl p-4 space-y-2">
+
+                              <label className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">
+                                Alt Text
+                              </label>
+
+                              <textarea
+                                readOnly
+                                value={
+                                  imagePromptData.altText
+                                }
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none resize-y min-h-[70px]"
+                              />
+
+                            </div>
+
+                            <div className="bg-slate-950 border border-slate-700 rounded-2xl p-4 space-y-2">
+
+                              <label className="text-xs font-bold text-teal-400 uppercase tracking-wider block">
+                                Title Text
+                              </label>
+
+                              <input
+                                readOnly
+                                value={
+                                  imagePromptData.titleText
+                                }
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none"
+                              />
+
+                            </div>
+
+                          </div>
+
+                          {/* COPY ALL */}
+
+                          <div className="pt-2">
+
+                            <button
+                              onClick={
+                                copyAllImagePromptData
+                              }
+                              className="w-full px-5 py-3 bg-slate-700 hover:bg-slate-600 text-emerald-300 border border-emerald-500/30 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2"
+                            >
+
+                              {imagePromptAllCopied ? (
+                                <Check className="w-4 h-4" />
+                              ) : (
+                                <Copy className="w-4 h-4" />
+                              )}
+
+                              {imagePromptAllCopied
+                                ? "Semua Data Berhasil Disalin"
+                                : "Copy Semua Data Image"}
+
+                            </button>
 
                           </div>
 
